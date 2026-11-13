@@ -1,16 +1,17 @@
-
 name: Build ToDo4ToDay APK
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'source.zip'
+      - '.github/workflows/build.yml'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,34 +27,44 @@ jobs:
         with:
           channel: stable
 
-      - name: Extract source
+      - name: Extract project ZIP
         run: |
           mkdir -p app
           unzip -o source.zip -d app
 
-      - name: Verify Flutter project
+      - name: Generate Android project
+        working-directory: app
+        run: flutter create . --platforms=android --org com.rtna.todo4today
+
+      - name: Configure app name, notifications and desugaring
+        working-directory: app
+        run: python3 scripts/configure_android.py
+
+      - name: Verify desugaring before build
+        working-directory: app
         run: |
-          if [ ! -f app/pubspec.yaml ]; then
-            echo "ERROR: pubspec.yaml not found at app root"
-            find app -maxdepth 3 -name pubspec.yaml
-            exit 1
+          echo '--- Android Gradle configuration ---'
+          if [ -f android/app/build.gradle.kts ]; then
+            grep -n -E 'isCoreLibraryDesugaringEnabled|coreLibraryDesugaring' android/app/build.gradle.kts
+          else
+            grep -n -E 'coreLibraryDesugaringEnabled|coreLibraryDesugaring' android/app/build.gradle
           fi
 
-      - name: Generate Android platform
-        run: |
-          cd app
-          flutter create --project-name todo4today --org com.rtna.todo4today --platforms=android .
-
-      - name: Install dependencies
+      - name: Install dependencies and generate launcher icon
         working-directory: app
-        run: flutter pub get
+        run: |
+          flutter pub get
+          dart run flutter_launcher_icons
 
       - name: Build APK
         working-directory: app
         run: flutter build apk --release
 
+      - name: Rename APK
+        run: cp app/build/app/outputs/flutter-apk/app-release.apk app/build/app/outputs/flutter-apk/ToDo4ToDay.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ToDo4ToDay-APK
-          path: app/build/app/outputs/flutter-apk/app-release.apk
+          path: app/build/app/outputs/flutter-apk/ToDo4ToDay.apk
