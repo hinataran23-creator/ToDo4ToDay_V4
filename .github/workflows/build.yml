@@ -1,0 +1,59 @@
+
+name: Build ToDo4ToDay APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Extract source
+        run: |
+          mkdir -p app
+          unzip -o source.zip -d app
+
+      - name: Verify Flutter project
+        run: |
+          if [ ! -f app/pubspec.yaml ]; then
+            echo "ERROR: pubspec.yaml not found at app root"
+            find app -maxdepth 3 -name pubspec.yaml
+            exit 1
+          fi
+
+      - name: Generate Android platform
+        run: |
+          cd app
+          flutter create --project-name todo4today --org com.rtna.todo4today --platforms=android .
+
+      - name: Install dependencies
+        working-directory: app
+        run: flutter pub get
+
+      - name: Build APK
+        working-directory: app
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ToDo4ToDay-APK
+          path: app/build/app/outputs/flutter-apk/app-release.apk
