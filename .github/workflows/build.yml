@@ -1,3 +1,4 @@
+
 name: Build ToDo4ToDay APK
 
 on:
@@ -12,6 +13,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,30 +29,35 @@ jobs:
         with:
           channel: stable
 
-      - name: Extract project ZIP
+      - name: Extract source
         run: |
           mkdir -p app
           unzip -o source.zip -d app
 
       - name: Generate Android project
         working-directory: app
-        run: flutter create . --platforms=android --org com.rtna.todo4today
+        run: flutter create . --project-name todo4today --org com.rtna.todo4today --platforms=android
 
-      - name: Configure app name, notifications and desugaring
-        working-directory: app
-        run: python3 scripts/configure_android.py
-
-      - name: Verify desugaring before build
-        working-directory: app
+      - name: Set application name
         run: |
-          echo '--- Android Gradle configuration ---'
-          if [ -f android/app/build.gradle.kts ]; then
-            grep -n -E 'isCoreLibraryDesugaringEnabled|coreLibraryDesugaring' android/app/build.gradle.kts
-          else
-            grep -n -E 'coreLibraryDesugaringEnabled|coreLibraryDesugaring' android/app/build.gradle
-          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
 
-      - name: Install dependencies and generate launcher icon
+          p = Path("app/android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          s, n = re.subn(
+              r'android:label="[^"]*"',
+              'android:label="ToDo4ToDay"',
+              s,
+              count=1
+          )
+          if n != 1:
+              raise SystemExit("Application name not found")
+          p.write_text(s)
+          PY
+
+      - name: Install dependencies and generate icon
         working-directory: app
         run: |
           flutter pub get
@@ -61,7 +68,8 @@ jobs:
         run: flutter build apk --release
 
       - name: Rename APK
-        run: cp app/build/app/outputs/flutter-apk/app-release.apk app/build/app/outputs/flutter-apk/ToDo4ToDay.apk
+        run: |
+          cp app/build/app/outputs/flutter-apk/app-release.apk app/build/app/outputs/flutter-apk/ToDo4ToDay.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
